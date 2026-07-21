@@ -94,7 +94,7 @@ export default function PredictPage() {
         } else {
           setPredictionHistory([
             {
-              cycle: res.cycle_number,
+              cycle: res.cycle_number || Number(cycleNumber),
               soh: res.soh_percent,
               rul: res.rul_cycles,
             },
@@ -103,7 +103,7 @@ export default function PredictPage() {
       } catch {
         setPredictionHistory([
           {
-            cycle: res.cycle_number,
+            cycle: res.cycle_number || Number(cycleNumber),
             soh: res.soh_percent,
             rul: res.rul_cycles,
           },

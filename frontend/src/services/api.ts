@@ -169,6 +169,7 @@ class ApiClient {
       battery_id: string;
       predictions: Array<{
         id: string;
+        cycle_number?: number;
         soh_percent: number;
         rul_cycles?: number;
         rul_fraction?: number;
@@ -235,6 +236,7 @@ class ApiClient {
     return this.handleResponse<{
       id: string;
       battery_id: string;
+      cycle_number?: number;
       soh_percent: number;
       rul_cycles?: number;
       rul_fraction?: number;
