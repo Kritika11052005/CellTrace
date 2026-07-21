@@ -5,22 +5,19 @@ set -o errexit
 pip install --upgrade pip
 pip install -r requirements.txt
 
-# Download Prisma binaries for Linux
+# 1. Fetch Prisma query-engine binary for this Linux platform
 python -m prisma py fetch
+echo "[build] Prisma binaries fetched"
 
-# Copy query engine to project root so it is stored in build container artifacts
-FIND_ENGINE=$(find /opt/render/.cache ~/.cache /tmp -name "prisma-query-engine*" -type f 2>/dev/null | head -n 1 || true)
-if [ -n "$FIND_ENGINE" ]; then
-    echo "Found query engine binary at $FIND_ENGINE, copying to project root..."
-    cp "$FIND_ENGINE" ./prisma-query-engine-debian-openssl-3.0.x || true
-    cp "$FIND_ENGINE" ./app/prisma/prisma-query-engine-debian-openssl-3.0.x || true
-    chmod 755 ./prisma-query-engine* || true
-    chmod 755 ./app/prisma/prisma-query-engine* || true
-fi
-
-# Generate Prisma client
+# 2. Regenerate the Prisma client ON LINUX so client.py contains
+#    the correct debian-openssl-3.0.x binary path (not Windows)
 export PRISMA_PY_DEBUG_GENERATOR=1
 python -m prisma generate
+echo "[build] Prisma client generated for $(uname -s)"
 
-# Push schema to Neon DB
+# 3. Verify the binary is where Prisma expects it
+find /opt/render/.cache/prisma-python -name "prisma-query-engine*" -type f 2>/dev/null || true
+
+# 4. Push schema to Neon DB
 python -m prisma db push --skip-generate
+echo "[build] Schema pushed to database"
