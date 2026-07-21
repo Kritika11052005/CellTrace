@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.venv/
+*.egg-info/
+
+# Environment
+.env
+
+# IDE
+.vscode/
+.idea/
+
+# NOTE: Do NOT ignore these — they are required at runtime on Render:
+# - models/*.pkl        (ML model weights)
+# - app/prisma/         (generated Prisma client)

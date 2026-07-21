@@ -1,0 +1,1281 @@
+{
+  "datamodel": "// CellTrace — Prisma Schema\n// Database: Neon PostgreSQL\n\ngenerator client {\n  provider             = \"prisma-client-py\"\n  interface            = \"asyncio\"\n  recursive_type_depth = 5\n  output               = \"../app/prisma\"\n}\n\ndatasource db {\n  provider = \"postgresql\"\n  url      = env(\"DATABASE_URL\")\n}\n\n// ─── Enums ───────────────────────────────────────────────\n\nenum UserRole {\n  operator\n  admin\n}\n\nenum ChainStatus {\n  pending\n  confirmed\n  failed\n}\n\n// ─── Users ───────────────────────────────────────────────\n\nmodel User {\n  id             String       @id @default(uuid()) @db.Uuid\n  email          String       @unique\n  password_hash  String\n  role           UserRole     @default(operator)\n  wallet_address String?\n  created_at     DateTime     @default(now()) @db.Timestamptz()\n  predictions    Prediction[]\n  audit_logs     AuditLog[]\n\n  @@map(\"users\")\n}\n\n// ─── Batteries ───────────────────────────────────────────\n\nmodel Battery {\n  id                  String        @id // battery serial number / ID\n  manufacturer        String?\n  model               String?\n  chemistry           String? // e.g. NMC, LFP, NCA, LCO\n  nominal_capacity_ah Float?\n  created_at          DateTime      @default(now()) @db.Timestamptz()\n  predictions         Prediction[]\n  chain_records       ChainRecord[]\n\n  @@map(\"batteries\")\n}\n\n// ─── Predictions ─────────────────────────────────────────\n\nmodel Prediction {\n  id               String   @id @default(uuid()) @db.Uuid\n  battery_id       String\n  soh_percent      Float\n  rul_cycles       Int?\n  rul_fraction     Float? // 0-1 scale remaining useful life fraction\n  confidence_range Json? // { soh_low, soh_high, rul_low, rul_high }\n  has_knee_point   Boolean?\n  model_version    String\n  input_data_ref   String? // pointer to raw cycle-data file\n  report_hash      String? // keccak256 hash of canonical report payload\n  created_by       String   @db.Uuid\n  created_at       DateTime @default(now()) @db.Timestamptz()\n\n  battery       Battery       @relation(fields: [battery_id], references: [id])\n  user          User          @relation(fields: [created_by], references: [id])\n  chain_records ChainRecord[]\n\n  @@index([battery_id])\n  @@index([created_by])\n  @@map(\"predictions\")\n}\n\n// ─── Chain Records ───────────────────────────────────────\n\nmodel ChainRecord {\n  id               String      @id @default(uuid()) @db.Uuid\n  prediction_id    String      @db.Uuid\n  battery_id       String\n  tx_hash          String      @unique\n  contract_address String\n  data_hash        String // should equal predictions.report_hash\n  event_type       String\n  block_number     Int?\n  chain_timestamp  DateTime?   @db.Timestamptz()\n  status           ChainStatus @default(pending)\n  created_at       DateTime    @default(now()) @db.Timestamptz()\n\n  prediction Prediction @relation(fields: [prediction_id], references: [id])\n  battery    Battery    @relation(fields: [battery_id], references: [id])\n\n  @@index([battery_id])\n  @@index([prediction_id])\n  @@map(\"chain_records\")\n}\n\n// ─── Audit Log ───────────────────────────────────────────\n\nmodel AuditLog {\n  id         String   @id @default(uuid()) @db.Uuid\n  actor_id   String?  @db.Uuid\n  action     String // e.g. login, predict, chain_write_attempt, verify_check\n  ip_address String?\n  metadata   Json?\n  created_at DateTime @default(now()) @db.Timestamptz()\n\n  actor User? @relation(fields: [actor_id], references: [id])\n\n  @@index([actor_id])\n  @@index([action])\n  @@map(\"audit_log\")\n}\n",
+  "version": "393aa359c9ad4a4bb28630fb5613f9c281cde053",
+  "generator": {
+    "name": "client",
+    "output": {
+      "value": "C:\\Users\\HP\\Downloads\\CellTrace\\backend\\app\\prisma",
+      "from_env_var": null
+    },
+    "provider": {
+      "value": "prisma-client-py",
+      "from_env_var": null
+    },
+    "config": {
+      "interface": "asyncio",
+      "partial_type_generator": null,
+      "recursive_type_depth": 5,
+      "engine_type": "binary",
+      "enable_experimental_decimal": false
+    },
+    "binary_targets": [
+      {
+        "value": "windows",
+        "from_env_var": null
+      }
+    ],
+    "preview_features": []
+  },
+  "dmmf": {
+    "datamodel": {
+      "enums": [
+        {
+          "name": "UserRole",
+          "db_name": null,
+          "values": [
+            {
+              "name": "operator",
+              "db_name": null
+            },
+            {
+              "name": "admin",
+              "db_name": null
+            }
+          ]
+        },
+        {
+          "name": "ChainStatus",
+          "db_name": null,
+          "values": [
+            {
+              "name": "pending",
+              "db_name": null
+            },
+            {
+              "name": "confirmed",
+              "db_name": null
+            },
+            {
+              "name": "failed",
+              "db_name": null
+            }
+          ]
+        }
+      ],
+      "models": [
+        {
+          "name": "User",
+          "documentation": null,
+          "db_name": "users",
+          "is_generated": false,
+          "compound_primary_key": null,
+          "unique_indexes": [],
+          "all_fields": [
+            {
+              "name": "id",
+              "documentation": null,
+              "kind": "scalar",
+              "type": "String",
+              "is_id": true,
+              "is_list": false,
+              "is_unique": false,
+              "is_required": true,
+              "is_read_only": false,
+              "is_generated": false,
+              "is_updated_at": false,
+              "default": {
+                "args": [],
+                "name": "uuid"
+              },
+              "has_default_value": true,
+              "relation_name": null,
+              "relation_on_delete": null,
+              "relation_to_fields": null,
+              "relation_from_fields": null
+            },
+            {
+              "name": "email",
+              "documentation": null,
+              "kind": "scalar",
+              "type": "String",
+              "is_id": false,
+              "is_list": false,
+              "is_unique": true,
+              "is_required": true,
+              "is_read_only": false,
+              "is_generated": false,
+              "is_updated_at": false,
+              "default": null,
+              "has_default_value": false,
+              "relation_name": null,
+              "relation_on_delete": null,
+              "relation_to_fields": null,
+              "relation_from_fields": null
+            },
+            {
+              "name": "password_hash",
+              "documentation": null,
+              "kind": "scalar",
+              "type": "String",
+              "is_id": false,
+              "is_list": false,
+              "is_unique": false,
+              "is_required": true,
+              "is_read_only": false,
+              "is_generated": false,
+              "is_updated_at": false,
+              "default": null,
+              "has_default_value": false,
+              "relation_name": null,
+              "relation_on_delete": null,
+              "relation_to_fields": null,
+              "relation_from_fields": null
+            },
+            {
+              "name": "role",
+              "documentation": null,
+              "kind": "enum",
+              "type": "UserRole",
+              "is_id": false,
+              "is_list": false,
+              "is_unique": false,
+              "is_required": true,
+              "is_read_only": false,
+              "is_generated": false,
+              "is_updated_at": false,
+              "default": "operator",
+              "has_default_value": true,
+              "relation_name": null,
+              "relation_on_delete": null,
+              "relation_to_fields": null,
+              "relation_from_fields": null
+            },
+            {
+              "name": "wallet_address",
+              "documentation": null,
+              "kind": "scalar",
+              "type": "String",
+              "is_id": false,
+              "is_list": false,
+              "is_unique": false,
+              "is_required": false,
+              "is_read_only": false,
+              "is_generated": false,
+              "is_updated_at": false,
+              "default": null,
+              "has_default_value": false,
+              "relation_name": null,
+              "relation_on_delete": null,
+              "relation_to_fields": null,
+              "relation_from_fields": null
+            },
+            {
+              "name": "created_at",
+              "documentation": null,
+              "kind": "scalar",
+              "type": "DateTime",
+              "is_id": false,
+              "is_list": false,
+              "is_unique": false,
+              "is_required": true,
+              "is_read_only": false,
+              "is_generated": false,
+              "is_updated_at": false,
+              "default": {
+                "args": [],
+                "name": "now"
+              },
+              "has_default_value": true,
+              "relation_name": null,
+              "relation_on_delete": null,
+              "relation_to_fields": null,
+              "relation_from_fields": null
+            },
+            {
+              "name": "predictions",
+              "documentation": null,
+              "kind": "object",
+              "type": "Prediction",
+              "is_id": false,
+              "is_list": true,
+              "is_unique": false,
+              "is_required": true,
+              "is_read_only": false,
+              "is_generated": false,
+              "is_updated_at": false,
+              "default": null,
+              "has_default_value": false,
+              "relation_name": "PredictionToUser",
+              "relation_on_delete": null,
+              "relation_to_fields": [],
+              "relation_from_fields": []
+            },
+            {
+              "name": "audit_logs",
+              "documentation": null,
+              "kind": "object",
+              "type": "AuditLog",
+              "is_id": false,
+              "is_list": true,
+              "is_unique": false,
+              "is_required": true,
+              "is_read_only": false,
+              "is_generated": false,
+              "is_updated_at": false,
+              "default": null,
+              "has_default_value": false,
+              "relation_name": "AuditLogToUser",
+              "relation_on_delete": null,
+              "relation_to_fields": [],
+              "relation_from_fields": []
+            }
+          ],
+          "extension": null
+        },
+        {
+          "name": "Battery",
+          "documentation": null,
+          "db_name": "batteries",
+          "is_generated": false,
+          "compound_primary_key": null,
+          "unique_indexes": [],
+          "all_fields": [
+            {
+              "name": "id",
+              "documentation": null,
+              "kind": "scalar",
+              "type": "String",
+              "is_id": true,
+              "is_list": false,
+              "is_unique": false,
+              "is_required": true,
+              "is_read_only": false,
+              "is_generated": false,
+              "is_updated_at": false,
+              "default": null,
+              "has_default_value": false,
+              "relation_name": null,
+              "relation_on_delete": null,
+              "relation_to_fields": null,
+              "relation_from_fields": null
+            },
+            {
+              "name": "manufacturer",
+              "documentation": null,
+              "kind": "scalar",
+              "type": "String",
+              "is_id": false,
+              "is_list": false,
+              "is_unique": false,
+              "is_required": false,
+              "is_read_only": false,
+              "is_generated": false,
+              "is_updated_at": false,
+              "default": null,
+              "has_default_value": false,
+              "relation_name": null,
+              "relation_on_delete": null,
+              "relation_to_fields": null,
+              "relation_from_fields": null
+            },
+            {
+              "name": "model",
+              "documentation": null,
+              "kind": "scalar",
+              "type": "String",
+              "is_id": false,
+              "is_list": false,
+              "is_unique": false,
+              "is_required": false,
+              "is_read_only": false,
+              "is_generated": false,
+              "is_updated_at": false,
+              "default": null,
+              "has_default_value": false,
+              "relation_name": null,
+              "relation_on_delete": null,
+              "relation_to_fields": null,
+              "relation_from_fields": null
+            },
+            {
+              "name": "chemistry",
+              "documentation": null,
+              "kind": "scalar",
+              "type": "String",
+              "is_id": false,
+              "is_list": false,
+              "is_unique": false,
+              "is_required": false,
+              "is_read_only": false,
+              "is_generated": false,
+              "is_updated_at": false,
+              "default": null,
+              "has_default_value": false,
+              "relation_name": null,
+              "relation_on_delete": null,
+              "relation_to_fields": null,
+              "relation_from_fields": null
+            },
+            {
+              "name": "nominal_capacity_ah",
+              "documentation": null,
+              "kind": "scalar",
+              "type": "Float",
+              "is_id": false,
+              "is_list": false,
+              "is_unique": false,
+              "is_required": false,
+              "is_read_only": false,
+              "is_generated": false,
+              "is_updated_at": false,
+              "default": null,
+              "has_default_value": false,
+              "relation_name": null,
+              "relation_on_delete": null,
+              "relation_to_fields": null,
+              "relation_from_fields": null
+            },
+            {
+              "name": "created_at",
+              "documentation": null,
+              "kind": "scalar",
+              "type": "DateTime",
+              "is_id": false,
+              "is_list": false,
+              "is_unique": false,
+              "is_required": true,
+              "is_read_only": false,
+              "is_generated": false,
+              "is_updated_at": false,
+              "default": {
+                "args": [],
+                "name": "now"
+              },
+              "has_default_value": true,
+              "relation_name": null,
+              "relation_on_delete": null,
+              "relation_to_fields": null,
+              "relation_from_fields": null
+            },
+            {
+              "name": "predictions",
+              "documentation": null,
+              "kind": "object",
+              "type": "Prediction",
+              "is_id": false,
+              "is_list": true,
+              "is_unique": false,
+              "is_required": true,
+              "is_read_only": false,
+              "is_generated": false,
+              "is_updated_at": false,
+              "default": null,
+              "has_default_value": false,
+              "relation_name": "BatteryToPrediction",
+              "relation_on_delete": null,
+              "relation_to_fields": [],
+              "relation_from_fields": []
+            },
+            {
+              "name": "chain_records",
+              "documentation": null,
+              "kind": "object",
+              "type": "ChainRecord",
+              "is_id": false,
+              "is_list": true,
+              "is_unique": false,
+              "is_required": true,
+              "is_read_only": false,
+              "is_generated": false,
+              "is_updated_at": false,
+              "default": null,
+              "has_default_value": false,
+              "relation_name": "BatteryToChainRecord",
+              "relation_on_delete": null,
+              "relation_to_fields": [],
+              "relation_from_fields": []
+            }
+          ],
+          "extension": null
+        },
+        {
+          "name": "Prediction",
+          "documentation": null,
+          "db_name": "predictions",
+          "is_generated": false,
+          "compound_primary_key": null,
+          "unique_indexes": [],
+          "all_fields": [
+            {
+              "name": "id",
+              "documentation": null,
+              "kind": "scalar",
+              "type": "String",
+              "is_id": true,
+              "is_list": false,
+              "is_unique": false,
+              "is_required": true,
+              "is_read_only": false,
+              "is_generated": false,
+              "is_updated_at": false,
+              "default": {
+                "args": [],
+                "name": "uuid"
+              },
+              "has_default_value": true,
+              "relation_name": null,
+              "relation_on_delete": null,
+              "relation_to_fields": null,
+              "relation_from_fields": null
+            },
+            {
+              "name": "battery_id",
+              "documentation": null,
+              "kind": "scalar",
+              "type": "String",
+              "is_id": false,
+              "is_list": false,
+              "is_unique": false,
+              "is_required": true,
+              "is_read_only": true,
+              "is_generated": false,
+              "is_updated_at": false,
+              "default": null,
+              "has_default_value": false,
+              "relation_name": null,
+              "relation_on_delete": null,
+              "relation_to_fields": null,
+              "relation_from_fields": null
+            },
+            {
+              "name": "soh_percent",
+              "documentation": null,
+              "kind": "scalar",
+              "type": "Float",
+              "is_id": false,
+              "is_list": false,
+              "is_unique": false,
+              "is_required": true,
+              "is_read_only": false,
+              "is_generated": false,
+              "is_updated_at": false,
+              "default": null,
+              "has_default_value": false,
+              "relation_name": null,
+              "relation_on_delete": null,
+              "relation_to_fields": null,
+              "relation_from_fields": null
+            },
+            {
+              "name": "rul_cycles",
+              "documentation": null,
+              "kind": "scalar",
+              "type": "Int",
+              "is_id": false,
+              "is_list": false,
+              "is_unique": false,
+              "is_required": false,
+              "is_read_only": false,
+              "is_generated": false,
+              "is_updated_at": false,
+              "default": null,
+              "has_default_value": false,
+              "relation_name": null,
+              "relation_on_delete": null,
+              "relation_to_fields": null,
+              "relation_from_fields": null
+            },
+            {
+              "name": "rul_fraction",
+              "documentation": null,
+              "kind": "scalar",
+              "type": "Float",
+              "is_id": false,
+              "is_list": false,
+              "is_unique": false,
+              "is_required": false,
+              "is_read_only": false,
+              "is_generated": false,
+              "is_updated_at": false,
+              "default": null,
+              "has_default_value": false,
+              "relation_name": null,
+              "relation_on_delete": null,
+              "relation_to_fields": null,
+              "relation_from_fields": null
+            },
+            {
+              "name": "confidence_range",
+              "documentation": null,
+              "kind": "scalar",
+              "type": "Json",
+              "is_id": false,
+              "is_list": false,
+              "is_unique": false,
+              "is_required": false,
+              "is_read_only": false,
+              "is_generated": false,
+              "is_updated_at": false,
+              "default": null,
+              "has_default_value": false,
+              "relation_name": null,
+              "relation_on_delete": null,
+              "relation_to_fields": null,
+              "relation_from_fields": null
+            },
+            {
+              "name": "has_knee_point",
+              "documentation": null,
+              "kind": "scalar",
+              "type": "Boolean",
+              "is_id": false,
+              "is_list": false,
+              "is_unique": false,
+              "is_required": false,
+              "is_read_only": false,
+              "is_generated": false,
+              "is_updated_at": false,
+              "default": null,
+              "has_default_value": false,
+              "relation_name": null,
+              "relation_on_delete": null,
+              "relation_to_fields": null,
+              "relation_from_fields": null
+            },
+            {
+              "name": "model_version",
+              "documentation": null,
+              "kind": "scalar",
+              "type": "String",
+              "is_id": false,
+              "is_list": false,
+              "is_unique": false,
+              "is_required": true,
+              "is_read_only": false,
+              "is_generated": false,
+              "is_updated_at": false,
+              "default": null,
+              "has_default_value": false,
+              "relation_name": null,
+              "relation_on_delete": null,
+              "relation_to_fields": null,
+              "relation_from_fields": null
+            },
+            {
+              "name": "input_data_ref",
+              "documentation": null,
+              "kind": "scalar",
+              "type": "String",
+              "is_id": false,
+              "is_list": false,
+              "is_unique": false,
+              "is_required": false,
+              "is_read_only": false,
+              "is_generated": false,
+              "is_updated_at": false,
+              "default": null,
+              "has_default_value": false,
+              "relation_name": null,
+              "relation_on_delete": null,
+              "relation_to_fields": null,
+              "relation_from_fields": null
+            },
+            {
+              "name": "report_hash",
+              "documentation": null,
+              "kind": "scalar",
+              "type": "String",
+              "is_id": false,
+              "is_list": false,
+              "is_unique": false,
+              "is_required": false,
+              "is_read_only": false,
+              "is_generated": false,
+              "is_updated_at": false,
+              "default": null,
+              "has_default_value": false,
+              "relation_name": null,
+              "relation_on_delete": null,
+              "relation_to_fields": null,
+              "relation_from_fields": null
+            },
+            {
+              "name": "created_by",
+              "documentation": null,
+              "kind": "scalar",
+              "type": "String",
+              "is_id": false,
+              "is_list": false,
+              "is_unique": false,
+              "is_required": true,
+              "is_read_only": true,
+              "is_generated": false,
+              "is_updated_at": false,
+              "default": null,
+              "has_default_value": false,
+              "relation_name": null,
+              "relation_on_delete": null,
+              "relation_to_fields": null,
+              "relation_from_fields": null
+            },
+            {
+              "name": "created_at",
+              "documentation": null,
+              "kind": "scalar",
+              "type": "DateTime",
+              "is_id": false,
+              "is_list": false,
+              "is_unique": false,
+              "is_required": true,
+              "is_read_only": false,
+              "is_generated": false,
+              "is_updated_at": false,
+              "default": {
+                "args": [],
+                "name": "now"
+              },
+              "has_default_value": true,
+              "relation_name": null,
+              "relation_on_delete": null,
+              "relation_to_fields": null,
+              "relation_from_fields": null
+            },
+            {
+              "name": "battery",
+              "documentation": null,
+              "kind": "object",
+              "type": "Battery",
+              "is_id": false,
+              "is_list": false,
+              "is_unique": false,
+              "is_required": true,
+              "is_read_only": false,
+              "is_generated": false,
+              "is_updated_at": false,
+              "default": null,
+              "has_default_value": false,
+              "relation_name": "BatteryToPrediction",
+              "relation_on_delete": null,
+              "relation_to_fields": [
+                "id"
+              ],
+              "relation_from_fields": [
+                "battery_id"
+              ]
+            },
+            {
+              "name": "user",
+              "documentation": null,
+              "kind": "object",
+              "type": "User",
+              "is_id": false,
+              "is_list": false,
+              "is_unique": false,
+              "is_required": true,
+              "is_read_only": false,
+              "is_generated": false,
+              "is_updated_at": false,
+              "default": null,
+              "has_default_value": false,
+              "relation_name": "PredictionToUser",
+              "relation_on_delete": null,
+              "relation_to_fields": [
+                "id"
+              ],
+              "relation_from_fields": [
+                "created_by"
+              ]
+            },
+            {
+              "name": "chain_records",
+              "documentation": null,
+              "kind": "object",
+              "type": "ChainRecord",
+              "is_id": false,
+              "is_list": true,
+              "is_unique": false,
+              "is_required": true,
+              "is_read_only": false,
+              "is_generated": false,
+              "is_updated_at": false,
+              "default": null,
+              "has_default_value": false,
+              "relation_name": "ChainRecordToPrediction",
+              "relation_on_delete": null,
+              "relation_to_fields": [],
+              "relation_from_fields": []
+            }
+          ],
+          "extension": null
+        },
+        {
+          "name": "ChainRecord",
+          "documentation": null,
+          "db_name": "chain_records",
+          "is_generated": false,
+          "compound_primary_key": null,
+          "unique_indexes": [],
+          "all_fields": [
+            {
+              "name": "id",
+              "documentation": null,
+              "kind": "scalar",
+              "type": "String",
+              "is_id": true,
+              "is_list": false,
+              "is_unique": false,
+              "is_required": true,
+              "is_read_only": false,
+              "is_generated": false,
+              "is_updated_at": false,
+              "default": {
+                "args": [],
+                "name": "uuid"
+              },
+              "has_default_value": true,
+              "relation_name": null,
+              "relation_on_delete": null,
+              "relation_to_fields": null,
+              "relation_from_fields": null
+            },
+            {
+              "name": "prediction_id",
+              "documentation": null,
+              "kind": "scalar",
+              "type": "String",
+              "is_id": false,
+              "is_list": false,
+              "is_unique": false,
+              "is_required": true,
+              "is_read_only": true,
+              "is_generated": false,
+              "is_updated_at": false,
+              "default": null,
+              "has_default_value": false,
+              "relation_name": null,
+              "relation_on_delete": null,
+              "relation_to_fields": null,
+              "relation_from_fields": null
+            },
+            {
+              "name": "battery_id",
+              "documentation": null,
+              "kind": "scalar",
+              "type": "String",
+              "is_id": false,
+              "is_list": false,
+              "is_unique": false,
+              "is_required": true,
+              "is_read_only": true,
+              "is_generated": false,
+              "is_updated_at": false,
+              "default": null,
+              "has_default_value": false,
+              "relation_name": null,
+              "relation_on_delete": null,
+              "relation_to_fields": null,
+              "relation_from_fields": null
+            },
+            {
+              "name": "tx_hash",
+              "documentation": null,
+              "kind": "scalar",
+              "type": "String",
+              "is_id": false,
+              "is_list": false,
+              "is_unique": true,
+              "is_required": true,
+              "is_read_only": false,
+              "is_generated": false,
+              "is_updated_at": false,
+              "default": null,
+              "has_default_value": false,
+              "relation_name": null,
+              "relation_on_delete": null,
+              "relation_to_fields": null,
+              "relation_from_fields": null
+            },
+            {
+              "name": "contract_address",
+              "documentation": null,
+              "kind": "scalar",
+              "type": "String",
+              "is_id": false,
+              "is_list": false,
+              "is_unique": false,
+              "is_required": true,
+              "is_read_only": false,
+              "is_generated": false,
+              "is_updated_at": false,
+              "default": null,
+              "has_default_value": false,
+              "relation_name": null,
+              "relation_on_delete": null,
+              "relation_to_fields": null,
+              "relation_from_fields": null
+            },
+            {
+              "name": "data_hash",
+              "documentation": null,
+              "kind": "scalar",
+              "type": "String",
+              "is_id": false,
+              "is_list": false,
+              "is_unique": false,
+              "is_required": true,
+              "is_read_only": false,
+              "is_generated": false,
+              "is_updated_at": false,
+              "default": null,
+              "has_default_value": false,
+              "relation_name": null,
+              "relation_on_delete": null,
+              "relation_to_fields": null,
+              "relation_from_fields": null
+            },
+            {
+              "name": "event_type",
+              "documentation": null,
+              "kind": "scalar",
+              "type": "String",
+              "is_id": false,
+              "is_list": false,
+              "is_unique": false,
+              "is_required": true,
+              "is_read_only": false,
+              "is_generated": false,
+              "is_updated_at": false,
+              "default": null,
+              "has_default_value": false,
+              "relation_name": null,
+              "relation_on_delete": null,
+              "relation_to_fields": null,
+              "relation_from_fields": null
+            },
+            {
+              "name": "block_number",
+              "documentation": null,
+              "kind": "scalar",
+              "type": "Int",
+              "is_id": false,
+              "is_list": false,
+              "is_unique": false,
+              "is_required": false,
+              "is_read_only": false,
+              "is_generated": false,
+              "is_updated_at": false,
+              "default": null,
+              "has_default_value": false,
+              "relation_name": null,
+              "relation_on_delete": null,
+              "relation_to_fields": null,
+              "relation_from_fields": null
+            },
+            {
+              "name": "chain_timestamp",
+              "documentation": null,
+              "kind": "scalar",
+              "type": "DateTime",
+              "is_id": false,
+              "is_list": false,
+              "is_unique": false,
+              "is_required": false,
+              "is_read_only": false,
+              "is_generated": false,
+              "is_updated_at": false,
+              "default": null,
+              "has_default_value": false,
+              "relation_name": null,
+              "relation_on_delete": null,
+              "relation_to_fields": null,
+              "relation_from_fields": null
+            },
+            {
+              "name": "status",
+              "documentation": null,
+              "kind": "enum",
+              "type": "ChainStatus",
+              "is_id": false,
+              "is_list": false,
+              "is_unique": false,
+              "is_required": true,
+              "is_read_only": false,
+              "is_generated": false,
+              "is_updated_at": false,
+              "default": "pending",
+              "has_default_value": true,
+              "relation_name": null,
+              "relation_on_delete": null,
+              "relation_to_fields": null,
+              "relation_from_fields": null
+            },
+            {
+              "name": "created_at",
+              "documentation": null,
+              "kind": "scalar",
+              "type": "DateTime",
+              "is_id": false,
+              "is_list": false,
+              "is_unique": false,
+              "is_required": true,
+              "is_read_only": false,
+              "is_generated": false,
+              "is_updated_at": false,
+              "default": {
+                "args": [],
+                "name": "now"
+              },
+              "has_default_value": true,
+              "relation_name": null,
+              "relation_on_delete": null,
+              "relation_to_fields": null,
+              "relation_from_fields": null
+            },
+            {
+              "name": "prediction",
+              "documentation": null,
+              "kind": "object",
+              "type": "Prediction",
+              "is_id": false,
+              "is_list": false,
+              "is_unique": false,
+              "is_required": true,
+              "is_read_only": false,
+              "is_generated": false,
+              "is_updated_at": false,
+              "default": null,
+              "has_default_value": false,
+              "relation_name": "ChainRecordToPrediction",
+              "relation_on_delete": null,
+              "relation_to_fields": [
+                "id"
+              ],
+              "relation_from_fields": [
+                "prediction_id"
+              ]
+            },
+            {
+              "name": "battery",
+              "documentation": null,
+              "kind": "object",
+              "type": "Battery",
+              "is_id": false,
+              "is_list": false,
+              "is_unique": false,
+              "is_required": true,
+              "is_read_only": false,
+              "is_generated": false,
+              "is_updated_at": false,
+              "default": null,
+              "has_default_value": false,
+              "relation_name": "BatteryToChainRecord",
+              "relation_on_delete": null,
+              "relation_to_fields": [
+                "id"
+              ],
+              "relation_from_fields": [
+                "battery_id"
+              ]
+            }
+          ],
+          "extension": null
+        },
+        {
+          "name": "AuditLog",
+          "documentation": null,
+          "db_name": "audit_log",
+          "is_generated": false,
+          "compound_primary_key": null,
+          "unique_indexes": [],
+          "all_fields": [
+            {
+              "name": "id",
+              "documentation": null,
+              "kind": "scalar",
+              "type": "String",
+              "is_id": true,
+              "is_list": false,
+              "is_unique": false,
+              "is_required": true,
+              "is_read_only": false,
+              "is_generated": false,
+              "is_updated_at": false,
+              "default": {
+                "args": [],
+                "name": "uuid"
+              },
+              "has_default_value": true,
+              "relation_name": null,
+              "relation_on_delete": null,
+              "relation_to_fields": null,
+              "relation_from_fields": null
+            },
+            {
+              "name": "actor_id",
+              "documentation": null,
+              "kind": "scalar",
+              "type": "String",
+              "is_id": false,
+              "is_list": false,
+              "is_unique": false,
+              "is_required": false,
+              "is_read_only": true,
+              "is_generated": false,
+              "is_updated_at": false,
+              "default": null,
+              "has_default_value": false,
+              "relation_name": null,
+              "relation_on_delete": null,
+              "relation_to_fields": null,
+              "relation_from_fields": null
+            },
+            {
+              "name": "action",
+              "documentation": null,
+              "kind": "scalar",
+              "type": "String",
+              "is_id": false,
+              "is_list": false,
+              "is_unique": false,
+              "is_required": true,
+              "is_read_only": false,
+              "is_generated": false,
+              "is_updated_at": false,
+              "default": null,
+              "has_default_value": false,
+              "relation_name": null,
+              "relation_on_delete": null,
+              "relation_to_fields": null,
+              "relation_from_fields": null
+            },
+            {
+              "name": "ip_address",
+              "documentation": null,
+              "kind": "scalar",
+              "type": "String",
+              "is_id": false,
+              "is_list": false,
+              "is_unique": false,
+              "is_required": false,
+              "is_read_only": false,
+              "is_generated": false,
+              "is_updated_at": false,
+              "default": null,
+              "has_default_value": false,
+              "relation_name": null,
+              "relation_on_delete": null,
+              "relation_to_fields": null,
+              "relation_from_fields": null
+            },
+            {
+              "name": "metadata",
+              "documentation": null,
+              "kind": "scalar",
+              "type": "Json",
+              "is_id": false,
+              "is_list": false,
+              "is_unique": false,
+              "is_required": false,
+              "is_read_only": false,
+              "is_generated": false,
+              "is_updated_at": false,
+              "default": null,
+              "has_default_value": false,
+              "relation_name": null,
+              "relation_on_delete": null,
+              "relation_to_fields": null,
+              "relation_from_fields": null
+            },
+            {
+              "name": "created_at",
+              "documentation": null,
+              "kind": "scalar",
+              "type": "DateTime",
+              "is_id": false,
+              "is_list": false,
+              "is_unique": false,
+              "is_required": true,
+              "is_read_only": false,
+              "is_generated": false,
+              "is_updated_at": false,
+              "default": {
+                "args": [],
+                "name": "now"
+              },
+              "has_default_value": true,
+              "relation_name": null,
+              "relation_on_delete": null,
+              "relation_to_fields": null,
+              "relation_from_fields": null
+            },
+            {
+              "name": "actor",
+              "documentation": null,
+              "kind": "object",
+              "type": "User",
+              "is_id": false,
+              "is_list": false,
+              "is_unique": false,
+              "is_required": false,
+              "is_read_only": false,
+              "is_generated": false,
+              "is_updated_at": false,
+              "default": null,
+              "has_default_value": false,
+              "relation_name": "AuditLogToUser",
+              "relation_on_delete": null,
+              "relation_to_fields": [
+                "id"
+              ],
+              "relation_from_fields": [
+                "actor_id"
+              ]
+            }
+          ],
+          "extension": null
+        }
+      ],
+      "types": []
+    },
+    "prisma_schema": {
+      "enum_types": {
+        "prisma": [
+          {
+            "name": "TransactionIsolationLevel",
+            "values": [
+              "ReadUncommitted",
+              "ReadCommitted",
+              "RepeatableRead",
+              "Serializable"
+            ]
+          },
+          {
+            "name": "UserScalarFieldEnum",
+            "values": [
+              "id",
+              "email",
+              "password_hash",
+              "role",
+              "wallet_address",
+              "created_at"
+            ]
+          },
+          {
+            "name": "BatteryScalarFieldEnum",
+            "values": [
+              "id",
+              "manufacturer",
+              "model",
+              "chemistry",
+              "nominal_capacity_ah",
+              "created_at"
+            ]
+          },
+          {
+            "name": "PredictionScalarFieldEnum",
+            "values": [
+              "id",
+              "battery_id",
+              "soh_percent",
+              "rul_cycles",
+              "rul_fraction",
+              "confidence_range",
+              "has_knee_point",
+              "model_version",
+              "input_data_ref",
+              "report_hash",
+              "created_by",
+              "created_at"
+            ]
+          },
+          {
+            "name": "ChainRecordScalarFieldEnum",
+            "values": [
+              "id",
+              "prediction_id",
+              "battery_id",
+              "tx_hash",
+              "contract_address",
+              "data_hash",
+              "event_type",
+              "block_number",
+              "chain_timestamp",
+              "status",
+              "created_at"
+            ]
+          },
+          {
+            "name": "AuditLogScalarFieldEnum",
+            "values": [
+              "id",
+              "actor_id",
+              "action",
+              "ip_address",
+              "metadata",
+              "created_at"
+            ]
+          },
+          {
+            "name": "SortOrder",
+            "values": [
+              "asc",
+              "desc"
+            ]
+          },
+          {
+            "name": "NullableJsonNullValueInput",
+            "values": [
+              "DbNull",
+              "JsonNull"
+            ]
+          },
+          {
+            "name": "QueryMode",
+            "values": [
+              "default",
+              "insensitive"
+            ]
+          },
+          {
+            "name": "NullsOrder",
+            "values": [
+              "first",
+              "last"
+            ]
+          },
+          {
+            "name": "JsonNullValueFilter",
+            "values": [
+              "DbNull",
+              "JsonNull",
+              "AnyNull"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "schema_path": "C:\\Users\\HP\\Downloads\\CellTrace\\backend\\prisma\\schema.prisma",
+  "datasources": [
+    {
+      "name": "db",
+      "provider": "postgresql",
+      "active_provider": "postgresql",
+      "url": {
+        "value": null,
+        "from_env_var": "DATABASE_URL"
+      }
+    }
+  ],
+  "other_generators": [],
+  "binary_paths": {
+    "query_engine": {
+      "windows": "C:\\Users\\HP\\.cache\\prisma-python\\binaries\\5.17.0\\393aa359c9ad4a4bb28630fb5613f9c281cde053\\node_modules\\prisma\\query-engine-windows.exe"
+    },
+    "introspection_engine": {},
+    "migration_engine": {},
+    "libquery_engine": {},
+    "prisma_format": {}
+  },
+  "names": {}
+}

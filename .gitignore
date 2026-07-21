@@ -1,0 +1,31 @@
+# Environment variables & secrets
+.env
+*.env
+.env.local
+.env.*.local
+
+# Large datasets & raw CSV files
+Data/
+*.csv
+
+# Node dependencies & Next.js build
+node_modules/
+.next/
+out/
+build/
+dist/
+
+# Python & Virtual Environments
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.venv/
+env/
+.pytest_cache/
+*.log
+
+# Hardhat & Smart Contracts
+blockchain/node_modules/
+blockchain/artifacts/
+blockchain/cache/

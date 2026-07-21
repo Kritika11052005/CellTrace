@@ -1,0 +1,122 @@
+// CellTrace — Prisma Schema
+// Database: Neon PostgreSQL
+
+generator client {
+  provider             = "prisma-client-py"
+  interface            = "asyncio"
+  recursive_type_depth = 5
+  output               = "../app/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ───────────────────────────────────────────────
+
+enum UserRole {
+  operator
+  admin
+}
+
+enum ChainStatus {
+  pending
+  confirmed
+  failed
+}
+
+// ─── Users ───────────────────────────────────────────────
+
+model User {
+  id             String       @id @default(uuid()) @db.Uuid
+  email          String       @unique
+  password_hash  String
+  role           UserRole     @default(operator)
+  wallet_address String?
+  created_at     DateTime     @default(now()) @db.Timestamptz()
+  predictions    Prediction[]
+  audit_logs     AuditLog[]
+
+  @@map("users")
+}
+
+// ─── Batteries ───────────────────────────────────────────
+
+model Battery {
+  id                  String        @id // battery serial number / ID
+  manufacturer        String?
+  model               String?
+  chemistry           String? // e.g. NMC, LFP, NCA, LCO
+  nominal_capacity_ah Float?
+  created_at          DateTime      @default(now()) @db.Timestamptz()
+  predictions         Prediction[]
+  chain_records       ChainRecord[]
+
+  @@map("batteries")
+}
+
+// ─── Predictions ─────────────────────────────────────────
+
+model Prediction {
+  id               String   @id @default(uuid()) @db.Uuid
+  battery_id       String
+  soh_percent      Float
+  rul_cycles       Int?
+  rul_fraction     Float? // 0-1 scale remaining useful life fraction
+  confidence_range Json? // { soh_low, soh_high, rul_low, rul_high }
+  has_knee_point   Boolean?
+  model_version    String
+  input_data_ref   String? // pointer to raw cycle-data file
+  report_hash      String? // keccak256 hash of canonical report payload
+  created_by       String   @db.Uuid
+  created_at       DateTime @default(now()) @db.Timestamptz()
+
+  battery       Battery       @relation(fields: [battery_id], references: [id])
+  user          User          @relation(fields: [created_by], references: [id])
+  chain_records ChainRecord[]
+
+  @@index([battery_id])
+  @@index([created_by])
+  @@map("predictions")
+}
+
+// ─── Chain Records ───────────────────────────────────────
+
+model ChainRecord {
+  id               String      @id @default(uuid()) @db.Uuid
+  prediction_id    String      @db.Uuid
+  battery_id       String
+  tx_hash          String      @unique
+  contract_address String
+  data_hash        String // should equal predictions.report_hash
+  event_type       String
+  block_number     Int?
+  chain_timestamp  DateTime?   @db.Timestamptz()
+  status           ChainStatus @default(pending)
+  created_at       DateTime    @default(now()) @db.Timestamptz()
+
+  prediction Prediction @relation(fields: [prediction_id], references: [id])
+  battery    Battery    @relation(fields: [battery_id], references: [id])
+
+  @@index([battery_id])
+  @@index([prediction_id])
+  @@map("chain_records")
+}
+
+// ─── Audit Log ───────────────────────────────────────────
+
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  actor_id   String?  @db.Uuid
+  action     String // e.g. login, predict, chain_write_attempt, verify_check
+  ip_address String?
+  metadata   Json?
+  created_at DateTime @default(now()) @db.Timestamptz()
+
+  actor User? @relation(fields: [actor_id], references: [id])
+
+  @@index([actor_id])
+  @@index([action])
+  @@map("audit_log")
+}

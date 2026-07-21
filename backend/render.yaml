@@ -1,0 +1,26 @@
+# Render Blueprint — CellTrace Backend
+services:
+  - type: web
+    name: celltrace-api
+    runtime: python
+    region: singapore  # closest to Neon ap-southeast-1
+    rootDir: backend
+    buildCommand: bash build.sh
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DATABASE_URL
+        sync: false  # set manually in Render dashboard
+      - key: JWT_SECRET
+        generateValue: true
+      - key: AMOY_RPC_URL
+        value: https://polygon-amoy-bor-rpc.publicnode.com
+      - key: PRIVATE_KEY
+        sync: false  # set manually — never commit private keys
+      - key: CONTRACT_ADDRESS
+        value: "0x2cf1A0ecA1fD597093610198996ED3fFE76E734C"
+      - key: CORS_ORIGINS
+        sync: false  # set to your Vercel domain after deploy
+      - key: PRISMA_PY_DEBUG_GENERATOR
+        value: "1"
+      - key: PYTHON_VERSION
+        value: "3.13.0"

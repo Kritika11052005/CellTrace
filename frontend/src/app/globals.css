@@ -1,0 +1,163 @@
+@import "tailwindcss";
+
+:root {
+  --background: #09090b;
+  --foreground: #f4f4f5;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-graphite-dark: #060608;
+  --color-graphite: #0d0d11;
+  --color-graphite-light: #18181f;
+  --color-graphite-panel: #111115;
+  --color-graphite-border: #22222a;
+  
+  --color-copper: #cc6600;
+  --color-copper-glow: rgba(204, 102, 0, 0.15);
+  --color-copper-light: #ff8800;
+  
+  --color-signal-teal: #0d9488;
+  --color-teal-glow: rgba(13, 148, 136, 0.15);
+  --color-teal-light: #14b8a6;
+  
+  --color-ledger-violet: #6d28d9;
+  --color-violet-glow: rgba(109, 40, 217, 0.15);
+  --color-violet-light: #a78bfa;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+}
+
+/* Prevent Chrome/Edge Autofill from turning inputs white */
+input:-webkit-autofill,
+input:-webkit-autofill:hover, 
+input:-webkit-autofill:focus, 
+input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 30px #070709 inset !important;
+  -webkit-text-fill-color: #ffffff !important;
+  caret-color: #ffffff !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+/* Custom Scrollbar for Graphite theme */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #09090b;
+}
+::-webkit-scrollbar-thumb {
+  background: #22222a;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #333340;
+}
+
+/* Glow Utilities */
+.glow-copper {
+  box-shadow: 0 0 20px 0 rgba(204, 102, 0, 0.25);
+}
+.glow-teal {
+  box-shadow: 0 0 20px 0 rgba(13, 148, 136, 0.25);
+}
+.glow-violet {
+  box-shadow: 0 0 20px 0 rgba(109, 40, 217, 0.25);
+}
+
+/* Glassmorphism panel */
+.glass-panel {
+  background: rgba(17, 17, 21, 0.8);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(34, 34, 42, 0.6);
+}
+
+/* Shimmer animation */
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+.shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.shimmer::after {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  transform: translateX(-100%);
+  background-image: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.05) 20%,
+    rgba(255, 255, 255, 0.1) 60%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  animation: shimmer 2s infinite;
+  content: '';
+}
+
+/* Navbar scroll transition */
+.nav-scrolled {
+  background: rgba(6, 6, 8, 0.85) !important;
+  backdrop-filter: blur(20px) !important;
+  border-bottom: 1px solid rgba(34, 34, 42, 0.5);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
+}
+
+/* Fade in up animation */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-fade-in-up {
+  animation: fadeInUp 0.7s ease-out forwards;
+}
+
+/* Stagger delays */
+.delay-100 { animation-delay: 100ms; }
+.delay-200 { animation-delay: 200ms; }
+.delay-300 { animation-delay: 300ms; }
+.delay-400 { animation-delay: 400ms; }
+.delay-500 { animation-delay: 500ms; }
+
+/* Gradient border card */
+.gradient-border {
+  position: relative;
+}
+.gradient-border::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, rgba(20, 184, 166, 0.3), rgba(109, 40, 217, 0.3));
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* Floating animation */
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-8px); }
+}
+.animate-float {
+  animation: float 4s ease-in-out infinite;
+}
+
