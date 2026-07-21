@@ -27,6 +27,7 @@ db = Prisma()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup / shutdown hooks."""
+    global db
     logger.info("Connecting to Neon PostgreSQL via Prisma…")
     try:
         await db.connect()
@@ -36,6 +37,7 @@ async def lifespan(app: FastAPI):
             logger.warning("Prisma query engine missing at runtime — executing fallback binary fetch...")
             import subprocess
             subprocess.run(["python", "-m", "prisma", "py", "fetch"], check=True)
+            db = Prisma()
             await db.connect()
         else:
             raise e
