@@ -5,8 +5,8 @@ services:
     runtime: python
     region: singapore  # closest to Neon ap-southeast-1
     rootDir: backend
-    buildCommand: bash build.sh
-    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    buildCommand: pip install -r requirements.txt && bash build.sh
+    startCommand: python -m prisma py fetch && cp $(find /opt/render/.cache ~/.cache /tmp -name 'prisma-query-engine*' 2>/dev/null | head -n 1) ./prisma-query-engine-debian-openssl-3.0.x 2>/dev/null || true; chmod 755 ./prisma-query-engine* 2>/dev/null || true; uvicorn app.main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: DATABASE_URL
         sync: false  # set manually in Render dashboard
