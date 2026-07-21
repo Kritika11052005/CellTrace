@@ -5,6 +5,9 @@ set -o errexit
 pip install --upgrade pip
 pip install -r requirements.txt
 
+# Fetch Prisma Linux Engine Binaries for Render environment
+python -m prisma py fetch
+
 # Generate Prisma client into app/prisma (matching schema.prisma output path)
 export PRISMA_PY_DEBUG_GENERATOR=1
 python -m prisma generate
