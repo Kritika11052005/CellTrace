@@ -7,28 +7,24 @@ from contextlib import asynccontextmanager
 
 os.environ["PRISMA_PY_DEBUG_GENERATOR"] = "1"
 
-# ─── Auto-Detect & Configure Prisma Query Engine Binary ──
+# ─── Ensure Query Engine Binary Permissions & Environment ──
 _backend_dir = Path(__file__).resolve().parent.parent
-_search_patterns = [
-    str(_backend_dir / "prisma-query-engine*"),
-    str(_backend_dir / "app" / "prisma" / "prisma-query-engine*"),
-    "/opt/render/.cache/prisma-python/binaries/**/prisma-query-engine*",
-    "/root/.cache/prisma-python/binaries/**/prisma-query-engine*",
-    "/tmp/prisma-python/binaries/**/prisma-query-engine*",
-]
 
-for _pattern in _search_patterns:
-    _matches = glob.glob(_pattern, recursive=True)
-    for _m in _matches:
-        if os.path.isfile(_m) and not _m.endswith(".py"):
-            try:
-                os.chmod(_m, 0o755)
-            except Exception:
-                pass
-            os.environ["PRISMA_QUERY_ENGINE_BINARY"] = _m
-            print(f"[CellTrace Startup] PRISMA_QUERY_ENGINE_BINARY set to: {_m}")
-            break
-    if "PRISMA_QUERY_ENGINE_BINARY" in os.environ:
+_engine_files = (
+    list(_backend_dir.glob("prisma-query-engine*")) +
+    list((_backend_dir / "app" / "prisma").glob("prisma-query-engine*")) +
+    [Path(p) for p in glob.glob("/opt/render/.cache/prisma-python/binaries/**/prisma-query-engine*", recursive=True)] +
+    [Path(p) for p in glob.glob("/root/.cache/prisma-python/binaries/**/prisma-query-engine*", recursive=True)]
+)
+
+for _efile in _engine_files:
+    if _efile.is_file() and not str(_efile).endswith(".py"):
+        try:
+            os.chmod(_efile, 0o755)
+        except Exception:
+            pass
+        os.environ["PRISMA_QUERY_ENGINE_BINARY"] = str(_efile)
+        print(f"[CellTrace Startup] Found & bound PRISMA_QUERY_ENGINE_BINARY: {_efile}")
         break
 
 from fastapi import FastAPI
@@ -65,14 +61,14 @@ async def lifespan(app: FastAPI):
             import subprocess
             subprocess.run(["python", "-m", "prisma", "py", "fetch"], check=True)
 
-            # Re-locate query engine binary after fetch
-            _matches = glob.glob("/opt/render/.cache/prisma-python/binaries/**/prisma-query-engine*", recursive=True)
-            if _matches:
+            # Grant 755 permissions to downloaded binaries in .cache
+            for _efile in glob.glob("/opt/render/.cache/prisma-python/binaries/**/prisma-query-engine*", recursive=True):
                 try:
-                    os.chmod(_matches[0], 0o755)
+                    os.chmod(_efile, 0o755)
                 except Exception:
                     pass
-                os.environ["PRISMA_QUERY_ENGINE_BINARY"] = _matches[0]
+                os.environ["PRISMA_QUERY_ENGINE_BINARY"] = _efile
+                break
 
             db = Prisma()
             await db.connect()
@@ -116,7 +112,7 @@ app.include_router(auth.router, prefix="/api/auth", tags=["Auth"])
 app.include_router(batteries.router, prefix="/api/batteries", tags=["Batteries"])
 app.include_router(predictions.router, prefix="/api/predictions", tags=["Predictions"])
 app.include_router(chain.router, prefix="/api/chain", tags=["Blockchain"])
-app.include_router(verify.router, prefix="/api/verify", tags=["Verification"])
+app.include_router(verify.router, prefix="/api/verify", tags=["Verify"])
 
 
 @app.get("/")
