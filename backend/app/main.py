@@ -16,17 +16,17 @@ _app_prisma_bin = _backend_dir / "app" / "prisma" / "prisma-query-engine-debian-
 
 def _prepare_engine():
     search_paths = [
-        str(_backend_dir / "prisma-query-engine*"),
-        str(_backend_dir / "app" / "prisma" / "prisma-query-engine*"),
         "/opt/render/.cache/prisma-python/binaries/**/prisma-query-engine*",
         "/root/.cache/prisma-python/binaries/**/prisma-query-engine*",
         "/tmp/prisma-python/binaries/**/prisma-query-engine*",
+        str(_backend_dir / "prisma-query-engine*"),
+        str(_backend_dir / "app" / "prisma" / "prisma-query-engine*"),
     ]
     
     found_binaries = []
     for pattern in search_paths:
         for m in glob.glob(pattern, recursive=True):
-            if os.path.isfile(m) and not m.endswith(".py"):
+            if os.path.isfile(m) and not m.endswith(".py") and os.path.getsize(m) > 1000:
                 found_binaries.append(m)
                 
     if not found_binaries:
@@ -38,36 +38,40 @@ def _prepare_engine():
             
         for pattern in search_paths:
             for m in glob.glob(pattern, recursive=True):
-                if os.path.isfile(m) and not m.endswith(".py"):
+                if os.path.isfile(m) and not m.endswith(".py") and os.path.getsize(m) > 1000:
                     found_binaries.append(m)
 
     if found_binaries:
         src = found_binaries[0]
-        print(f"[CellTrace Startup] Found engine binary at: {src}")
-        for dest in [_target_bin, _app_prisma_bin]:
-            try:
-                dest.parent.mkdir(parents=True, exist_ok=True)
-                if not dest.exists():
-                    shutil.copy2(src, dest)
-                os.chmod(dest, 0o755)
-                print(f"[CellTrace Startup] Configured engine at {dest} (chmod 755)")
-            except Exception as ex:
-                print(f"[CellTrace Startup] Copy warning for {dest}: {ex}")
-                
-        os.environ["PRISMA_QUERY_ENGINE_BINARY"] = str(_target_bin)
+        print(f"[CellTrace Startup] Valid engine binary found at ({os.path.getsize(src)} bytes): {src}")
+        
         try:
             os.chmod(src, 0o755)
         except Exception:
             pass
 
-_prepare_engine()
+        for dest in [_target_bin, _app_prisma_bin]:
+            try:
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(src, dest)
+                os.chmod(dest, 0o755)
+                print(f"[CellTrace Startup] Force-copied engine to {dest} ({os.path.getsize(dest)} bytes, chmod 755)")
+            except Exception as ex:
+                print(f"[CellTrace Startup] Copy warning for {dest}: {ex}")
+                
+        os.environ["PRISMA_QUERY_ENGINE_BINARY"] = str(src)
+        print(f"[CellTrace Startup] Locked PRISMA_QUERY_ENGINE_BINARY -> {src}")
+        return src
+    return None
 
-# ─── 2. Force Prisma Engine Path ─────────────────────────
+_active_bin_path = _prepare_engine()
+
+# ─── 2. Override Prisma Engine Binary Paths Object ───────
 import prisma.engine
-if hasattr(prisma.engine, "BINARY_PATHS") and _target_bin.exists():
+if hasattr(prisma.engine, "BINARY_PATHS") and _active_bin_path:
     try:
-        prisma.engine.BINARY_PATHS.query_engine = _target_bin
-        print(f"[CellTrace Startup] Overrode prisma.engine.BINARY_PATHS.query_engine = {_target_bin}")
+        prisma.engine.BINARY_PATHS.query_engine = Path(_active_bin_path)
+        print(f"[CellTrace Startup] Updated BINARY_PATHS.query_engine -> {_active_bin_path}")
     except Exception as ex:
         print(f"[CellTrace Startup] BINARY_PATHS override warning: {ex}")
 
@@ -100,7 +104,9 @@ async def lifespan(app: FastAPI):
         await db.connect()
     except Exception as e:
         logger.warning(f"Prisma connection error: {e}. Re-executing _prepare_engine()...")
-        _prepare_engine()
+        fresh_bin = _prepare_engine()
+        if fresh_bin and hasattr(prisma.engine, "BINARY_PATHS"):
+            prisma.engine.BINARY_PATHS.query_engine = Path(fresh_bin)
         db = Prisma()
         await db.connect()
     logger.info("Database connected ✓")
