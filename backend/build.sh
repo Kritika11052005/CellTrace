@@ -5,17 +5,17 @@ set -o errexit
 pip install --upgrade pip
 pip install -r requirements.txt
 
-# Download Prisma binaries for Linux (debian-openssl-3.0.x)
+# Download Prisma binaries for Linux
 python -m prisma py fetch
 
 # Copy the fetched query engine binary directly into project root & app/prisma
-FIND_ENGINE=$(find /opt/render/.cache/prisma-python ~/.cache/prisma-python -name "prisma-query-engine*" 2>/dev/null | head -n 1 || true)
+FIND_ENGINE=$(find /opt/render/.cache/prisma-python ~/.cache/prisma-python /tmp -name "prisma-query-engine*" -type f 2>/dev/null | head -n 1 || true)
 if [ -n "$FIND_ENGINE" ]; then
-    echo "Found query engine at $FIND_ENGINE, copying to project root and app/prisma..."
-    cp "$FIND_ENGINE" ./prisma-query-engine-debian-openssl-3.0.x || true
-    cp "$FIND_ENGINE" ./app/prisma/prisma-query-engine-debian-openssl-3.0.x || true
-    chmod +x ./prisma-query-engine-debian-openssl-3.0.x || true
-    chmod +x ./app/prisma/prisma-query-engine-debian-openssl-3.0.x || true
+    echo "Found query engine binary at $FIND_ENGINE, copying to project root..."
+    cp "$FIND_ENGINE" ./prisma-query-engine
+    cp "$FIND_ENGINE" ./app/prisma/prisma-query-engine
+    chmod +x ./prisma-query-engine || true
+    chmod +x ./app/prisma/prisma-query-engine || true
 fi
 
 # Generate Prisma client
