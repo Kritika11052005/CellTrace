@@ -27,9 +27,18 @@ db = Prisma()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup / shutdown hooks."""
-    # Startup
     logger.info("Connecting to Neon PostgreSQL via Prisma…")
-    await db.connect()
+    try:
+        await db.connect()
+    except Exception as e:
+        err_msg = str(e)
+        if "BinaryNotFoundError" in str(type(e).__name__) or "prisma-query-engine" in err_msg or "binary" in err_msg.lower():
+            logger.warning("Prisma query engine missing at runtime — executing fallback binary fetch...")
+            import subprocess
+            subprocess.run(["python", "-m", "prisma", "py", "fetch"], check=True)
+            await db.connect()
+        else:
+            raise e
     logger.info("Database connected ✓")
 
     logger.info("Loading ML models…")
