@@ -1,6 +1,6 @@
 // CellTrace API Client Service
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://celltrace.onrender.com/api';
 
 class ApiClient {
   private getHeaders(authRequired = true): HeadersInit {

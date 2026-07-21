@@ -17,7 +17,7 @@ export default function DashboardSummaryPage() {
         const statsData = await api.getDashboardStats();
         
         // Fetch recent predictions
-        const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+        const apiBase = process.env.NEXT_PUBLIC_API_URL || 'https://celltrace.onrender.com/api';
         const predictionsData = await fetch(`${apiBase}/predictions?take=5`);
         const json = await predictionsData.json();
         
