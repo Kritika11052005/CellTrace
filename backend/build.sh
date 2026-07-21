@@ -15,8 +15,20 @@ export PRISMA_PY_DEBUG_GENERATOR=1
 python -m prisma generate
 echo "[build] Prisma client generated for $(uname -s)"
 
-# 3. Verify the binary is where Prisma expects it
-find /opt/render/.cache/prisma-python -name "prisma-query-engine*" -type f 2>/dev/null || true
+# 3. Copy the query engine binary INTO the project directory
+#    (Render wipes /opt/render/.cache between build and deploy!)
+ENGINE_BIN=$(find /opt/render/.cache/prisma-python ~/.cache/prisma-python /tmp -type f \( -name "prisma-query-engine*" -o -name "query-engine-*" \) ! -name "*.py" ! -name "*.json" 2>/dev/null | head -n 1 || true)
+
+if [ -n "$ENGINE_BIN" ]; then
+    echo "[build] Found engine binary: $ENGINE_BIN ($(stat -c%s "$ENGINE_BIN") bytes)"
+    cp "$ENGINE_BIN" ./prisma-query-engine-debian-openssl-3.0.x
+    chmod 755 ./prisma-query-engine-debian-openssl-3.0.x
+    echo "[build] Copied engine to project root ✓"
+    ls -la ./prisma-query-engine-debian-openssl-3.0.x
+else
+    echo "[build] WARNING: Could not find engine binary in cache!"
+    find /opt/render/.cache/prisma-python -type f 2>/dev/null || echo "(no cache files found)"
+fi
 
 # 4. Push schema to Neon DB
 python -m prisma db push --skip-generate
