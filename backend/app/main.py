@@ -1,31 +1,75 @@
 """CellTrace Backend — Main FastAPI Application"""
 import os
 import glob
+import shutil
 import logging
+import subprocess
 from pathlib import Path
 from contextlib import asynccontextmanager
 
 os.environ["PRISMA_PY_DEBUG_GENERATOR"] = "1"
 
-# ─── Ensure Query Engine Binary Permissions & Environment ──
-_backend_dir = Path(__file__).resolve().parent.parent
-
-_engine_files = (
-    list(_backend_dir.glob("prisma-query-engine*")) +
-    list((_backend_dir / "app" / "prisma").glob("prisma-query-engine*")) +
-    [Path(p) for p in glob.glob("/opt/render/.cache/prisma-python/binaries/**/prisma-query-engine*", recursive=True)] +
-    [Path(p) for p in glob.glob("/root/.cache/prisma-python/binaries/**/prisma-query-engine*", recursive=True)]
-)
-
-for _efile in _engine_files:
-    if _efile.is_file() and not str(_efile).endswith(".py"):
+# ─── Self-Healing Prisma Engine Bootstrapper ──────────────
+def setup_prisma_binary():
+    backend_dir = Path(__file__).resolve().parent.parent
+    target_names = [
+        "prisma-query-engine-debian-openssl-3.0.x",
+        "prisma-query-engine",
+    ]
+    
+    search_paths = [
+        str(backend_dir / "prisma-query-engine*"),
+        str(backend_dir / "app" / "prisma" / "prisma-query-engine*"),
+        "/opt/render/.cache/prisma-python/binaries/**/prisma-query-engine*",
+        "/root/.cache/prisma-python/binaries/**/prisma-query-engine*",
+        "/tmp/prisma-python/binaries/**/prisma-query-engine*",
+    ]
+    
+    found_binaries = []
+    for pattern in search_paths:
+        matches = glob.glob(pattern, recursive=True)
+        for m in matches:
+            if os.path.isfile(m) and not m.endswith(".py"):
+                found_binaries.append(m)
+                
+    if not found_binaries:
+        print("[CellTrace Startup] Prisma query engine missing — running `python -m prisma py fetch`...")
         try:
-            os.chmod(_efile, 0o755)
+            subprocess.run(["python", "-m", "prisma", "py", "fetch"], check=True)
+        except Exception as err:
+            print(f"[CellTrace Startup] Binary fetch warning: {err}")
+            
+        for pattern in search_paths:
+            matches = glob.glob(pattern, recursive=True)
+            for m in matches:
+                if os.path.isfile(m) and not m.endswith(".py"):
+                    found_binaries.append(m)
+
+    if found_binaries:
+        src_bin = found_binaries[0]
+        print(f"[CellTrace Startup] Found engine binary at: {src_bin}")
+        
+        for tname in target_names:
+            dest_paths = [
+                backend_dir / tname,
+                backend_dir / "app" / "prisma" / tname,
+            ]
+            for dest in dest_paths:
+                try:
+                    if not dest.exists():
+                        shutil.copy2(src_bin, dest)
+                    os.chmod(dest, 0o755)
+                    print(f"[CellTrace Startup] Engine configured at {dest} (chmod 755)")
+                except Exception as ex:
+                    print(f"[CellTrace Startup] Copy warning for {dest}: {ex}")
+                    
+        os.environ["PRISMA_QUERY_ENGINE_BINARY"] = str(backend_dir / "prisma-query-engine-debian-openssl-3.0.x")
+        try:
+            os.chmod(src_bin, 0o755)
         except Exception:
             pass
-        os.environ["PRISMA_QUERY_ENGINE_BINARY"] = str(_efile)
-        print(f"[CellTrace Startup] Found & bound PRISMA_QUERY_ENGINE_BINARY: {_efile}")
-        break
+
+setup_prisma_binary()
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -55,25 +99,10 @@ async def lifespan(app: FastAPI):
     try:
         await db.connect()
     except Exception as e:
-        err_msg = str(e)
-        if "BinaryNotFoundError" in str(type(e).__name__) or "prisma-query-engine" in err_msg or "binary" in err_msg.lower():
-            logger.warning("Prisma query engine missing at runtime — executing fallback binary fetch...")
-            import subprocess
-            subprocess.run(["python", "-m", "prisma", "py", "fetch"], check=True)
-
-            # Grant 755 permissions to downloaded binaries in .cache
-            for _efile in glob.glob("/opt/render/.cache/prisma-python/binaries/**/prisma-query-engine*", recursive=True):
-                try:
-                    os.chmod(_efile, 0o755)
-                except Exception:
-                    pass
-                os.environ["PRISMA_QUERY_ENGINE_BINARY"] = _efile
-                break
-
-            db = Prisma()
-            await db.connect()
-        else:
-            raise e
+        logger.warning(f"Initial Prisma connect attempt error: {e}. Retrying setup_prisma_binary()...")
+        setup_prisma_binary()
+        db = Prisma()
+        await db.connect()
     logger.info("Database connected ✓")
 
     logger.info("Loading ML models…")
