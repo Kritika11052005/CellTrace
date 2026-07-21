@@ -190,7 +190,7 @@ export default function BatteryDetailPage({ params }: PageProps) {
                       No ML inference runs have been executed for battery cell <strong className="text-[#deff00] font-mono">{batteryId}</strong> yet. Run a prediction on the Inference Terminal to compute SOH &amp; RUL.
                     </p>
                     <Link
-                      href="/dashboard/predict"
+                      href={`/dashboard/predict?battery_id=${encodeURIComponent(batteryId)}`}
                       className="mt-2 bg-[#deff00] hover:bg-[#cbe800] text-black font-extrabold text-xs py-2.5 px-5 rounded-xl uppercase tracking-wider font-mono transition-all shadow-lg shadow-[#deff00]/15 flex items-center gap-1.5"
                     >
                       <Terminal className="w-4 h-4" /> Run Inference for {batteryId}
@@ -262,7 +262,7 @@ export default function BatteryDetailPage({ params }: PageProps) {
                         <span className="text-[10px] font-mono text-zinc-400 uppercase tracking-wider">
                           Logged Inference Runs for Cell {batteryId}
                         </span>
-                        <Link href="/dashboard/predict" className="text-[10px] font-mono text-[#deff00] hover:underline flex items-center gap-1">
+                        <Link href={`/dashboard/predict?battery_id=${encodeURIComponent(batteryId)}`} className="text-[10px] font-mono text-[#deff00] hover:underline flex items-center gap-1">
                           + Run New Inference
                         </Link>
                       </div>

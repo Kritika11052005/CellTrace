@@ -33,17 +33,41 @@ export default function PredictPage() {
 
   useEffect(() => {
     const loadBatteries = async () => {
+      const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+      const paramBatteryId = searchParams?.get('battery_id') || searchParams?.get('battery') || searchParams?.get('id');
+
       try {
         const res = await api.getBatteries('', 0, 100);
         setBatteries(res.batteries);
-        if (res.batteries.length > 0) {
+
+        if (paramBatteryId) {
+          const matched = res.batteries.find((b: any) => b.id === paramBatteryId);
+          if (matched) {
+            setBatteryId(matched.id);
+            if (matched.chemistry) {
+              setCathode(matched.chemistry);
+            }
+          } else {
+            // Battery serial ID passed in URL is custom or newly registered
+            setIsCustomBattery(true);
+            setCustomBatteryId(paramBatteryId);
+          }
+        } else if (res.batteries.length > 0) {
           setBatteryId(res.batteries[0].id);
+          if (res.batteries[0].chemistry) {
+            setCathode(res.batteries[0].chemistry);
+          }
         } else {
           setIsCustomBattery(true);
         }
       } catch (err) {
         console.error('Failed to load batteries:', err);
-        setIsCustomBattery(true);
+        if (paramBatteryId) {
+          setIsCustomBattery(true);
+          setCustomBatteryId(paramBatteryId);
+        } else {
+          setIsCustomBattery(true);
+        }
       }
     };
     loadBatteries();
@@ -176,7 +200,14 @@ export default function PredictPage() {
               <label className="block text-xs font-mono text-zinc-400 uppercase tracking-wider mb-2">Target Battery</label>
               <select
                 value={batteryId}
-                onChange={(e) => setBatteryId(e.target.value)}
+                onChange={(e) => {
+                  const selectedId = e.target.value;
+                  setBatteryId(selectedId);
+                  const matched = batteries.find((b) => b.id === selectedId);
+                  if (matched?.chemistry) {
+                    setCathode(matched.chemistry);
+                  }
+                }}
                 className="w-full bg-[#060608] border border-graphite-border rounded-xl py-2.5 px-3 text-xs text-white focus:outline-none focus:border-[#deff00] transition-colors font-mono"
               >
                 {batteries.map((b) => (
