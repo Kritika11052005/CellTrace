@@ -1,6 +1,6 @@
 // CellTrace API Client Service
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
 
 class ApiClient {
   private getHeaders(authRequired = true): HeadersInit {
