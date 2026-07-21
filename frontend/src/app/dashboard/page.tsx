@@ -17,7 +17,8 @@ export default function DashboardSummaryPage() {
         const statsData = await api.getDashboardStats();
         
         // Fetch recent predictions
-        const predictionsData = await fetch('http://localhost:8000/predictions?take=5');
+        const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+        const predictionsData = await fetch(`${apiBase}/predictions?take=5`);
         const json = await predictionsData.json();
         
         // Count details
