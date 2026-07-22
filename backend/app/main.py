@@ -9,7 +9,7 @@ from app.prisma import Prisma
 
 from app.config import settings
 from app.services.ml_service import ml_service
-from app.routes import health, auth, batteries, predictions, chain, verify
+from app.routes import health, auth, batteries, predictions, chain, verify, apm
 
 
 # ─── Logging ──────────────────────────────────────────────
@@ -45,6 +45,12 @@ async def lifespan(app: FastAPI):
     logger.info("Shutdown complete ✓")
 
 
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+
+limiter = Limiter(key_func=get_remote_address, default_limits=["60/minute"])
+
 # ─── App ──────────────────────────────────────────────────
 app = FastAPI(
     title="CellTrace API",
@@ -52,6 +58,9 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # ─── CORS Middleware ──────────────────────────────────────
 app.add_middleware(
@@ -62,6 +71,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 # ─── Include Routers ──────────────────────────────────────
 app.include_router(health.router, prefix="/api", tags=["Health"])
 app.include_router(auth.router, prefix="/api/auth", tags=["Auth"])
@@ -69,6 +79,7 @@ app.include_router(batteries.router, prefix="/api/batteries", tags=["Batteries"]
 app.include_router(predictions.router, prefix="/api/predictions", tags=["Predictions"])
 app.include_router(chain.router, prefix="/api/chain", tags=["Blockchain"])
 app.include_router(verify.router, prefix="/api/verify", tags=["Verify"])
+app.include_router(apm.router, prefix="/api/apm", tags=["APM AI Agent"])
 
 
 @app.get("/")

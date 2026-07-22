@@ -3,8 +3,9 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '@/services/api';
 import { LivingCell } from '@/components/LivingCell';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
-import { Terminal, Shield, Play, Link as LinkIcon, CheckCircle, RefreshCw, AlertTriangle, HelpCircle } from 'lucide-react';
+import { Terminal, Shield, Play, CheckCircle, RefreshCw, AlertTriangle, HelpCircle, Bot, Wrench, Zap } from 'lucide-react';
+import PredictiveMaintenanceFeed from '@/components/PredictiveMaintenanceFeed';
+import OptimalChargingPanel from '@/components/OptimalChargingPanel';
 
 export default function PredictPage() {
   const [batteries, setBatteries] = useState<any[]>([]);
@@ -24,6 +25,7 @@ export default function PredictPage() {
   const [running, setRunning] = useState(false);
   const [error, setError] = useState('');
   const [predictionResult, setPredictionResult] = useState<any>(null);
+  const [apmDiagnosis, setApmDiagnosis] = useState<any>(null);
   const [predictionHistory, setPredictionHistory] = useState<any[]>([]);
 
   // Blockchain Anchoring
@@ -48,7 +50,6 @@ export default function PredictPage() {
               setCathode(matched.chemistry);
             }
           } else {
-            // Battery serial ID passed in URL is custom or newly registered
             setIsCustomBattery(true);
             setCustomBatteryId(paramBatteryId);
           }
@@ -78,6 +79,7 @@ export default function PredictPage() {
     setRunning(true);
     setError('');
     setPredictionResult(null);
+    setApmDiagnosis(null);
     setAnchorResult(null);
     setAnchorError('');
 
@@ -92,7 +94,7 @@ export default function PredictPage() {
       const data: any = {
         battery_id: targetId,
         cycle_number: Number(cycleNumber),
-        soh_current: Number(sohCurrent) / 100, // API expects fraction (0 to 1)
+        soh_current: Number(sohCurrent) / 100,
         cathode,
       };
 
@@ -103,35 +105,19 @@ export default function PredictPage() {
       const res = await api.runPrediction(data);
       setPredictionResult(res);
 
-      // Fetch all real database predictions for this battery cell
+      // Run Gemini APM AI Agent diagnosis
       try {
-        const pData = await api.getBatteryPredictions(targetId);
-        if (pData.predictions && pData.predictions.length > 0) {
-          const realHistory = pData.predictions
-            .map((p: any) => ({
-              cycle: p.cycle_number,
-              soh: Number(p.soh_percent.toFixed(2)),
-              rul: p.rul_cycles || 0,
-            }))
-            .sort((a: any, b: any) => a.cycle - b.cycle);
-          setPredictionHistory(realHistory);
-        } else {
-          setPredictionHistory([
-            {
-              cycle: res.cycle_number || Number(cycleNumber),
-              soh: res.soh_percent,
-              rul: res.rul_cycles,
-            },
-          ]);
-        }
-      } catch {
-        setPredictionHistory([
-          {
-            cycle: res.cycle_number || Number(cycleNumber),
-            soh: res.soh_percent,
-            rul: res.rul_cycles,
-          },
-        ]);
+        const diag = await api.getAPMDiagnosis({
+          battery_id: targetId,
+          cycle_number: Number(cycleNumber) || 1,
+          soh_percent: res.soh_percent ?? Number(sohCurrent),
+          rul_cycles: res.rul_cycles ?? 340,
+          has_knee_point: Boolean(res.has_knee_point),
+          cathode: cathode || 'LFP',
+        });
+        setApmDiagnosis(diag);
+      } catch (diagErr) {
+        console.error('APM diagnosis error:', diagErr);
       }
     } catch (err: any) {
       setError(err.message || 'Error executing predictive model inference.');
@@ -160,11 +146,17 @@ export default function PredictPage() {
     <div className="space-y-8 font-sans">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-white font-mono">Inference Terminal</h1>
-        <p className="text-zinc-400 text-xs mt-1">Run state-of-health predictions and log findings to the blockchain provenance layer</p>
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl font-bold tracking-tight text-white font-mono">Inference Terminal</h1>
+          <span className="bg-[#deff00]/10 text-[#deff00] border border-[#deff00]/30 text-xs px-2.5 py-0.5 rounded-full font-mono flex items-center gap-1 font-bold">
+            <Bot className="w-3.5 h-3.5" /> Gemini APM Agent Integrated
+          </span>
+        </div>
+        <p className="text-zinc-400 text-xs mt-1">Run state-of-health predictions, trigger AI diagnostics, and log findings to the Polygon blockchain</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+      {/* Top Section: Form + 3D Telemetry Visualizer */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Left Side: Form */}
         <form onSubmit={handlePredict} className="lg:col-span-5 bg-[#0b0b10] p-6 rounded-2xl border border-graphite-border space-y-5 shadow-xl">
           <div className="flex justify-between items-center pb-3 border-b border-graphite-border/50">
@@ -265,7 +257,7 @@ export default function PredictPage() {
           <div className="border-t border-graphite-border/40 pt-4 space-y-4">
             <div className="flex items-center gap-1">
               <span className="text-xs font-semibold text-zinc-300 font-mono">Advanced Cycle Parameters</span>
-              <span className="text-zinc-500 cursor-help" title="Optional parameters derived from cycle capacity curve fitting. If omitted, default values for the cathode chemistry are automatically loaded.">
+              <span className="text-zinc-500 cursor-help" title="Optional parameters derived from cycle capacity curve fitting.">
                 <HelpCircle className="w-3.5 h-3.5" />
               </span>
             </div>
@@ -315,12 +307,12 @@ export default function PredictPage() {
             {running ? (
               <>
                 <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                Executing Random Forest Solver…
+                Running Gemini APM &amp; ML Solvers…
               </>
             ) : (
               <>
                 <Play className="w-3.5 h-3.5 fill-current" />
-                Run Model Inference
+                Run Model &amp; APM Diagnostics
               </>
             )}
           </button>
@@ -332,12 +324,12 @@ export default function PredictPage() {
           )}
         </form>
 
-        {/* Right Side: R3F Canvas & Results */}
-        <div className="lg:col-span-7 space-y-6">
+        {/* Right Side: R3F 3D Canvas & Output Cards */}
+        <div className="lg:col-span-7 space-y-5">
           {/* Dynamic 3D Visualization */}
           <div className="bg-[#0b0b10] p-5 rounded-2xl border border-graphite-border relative overflow-hidden flex flex-col items-center shadow-xl">
             <h3 className="w-full font-bold text-white text-xs font-mono mb-4 text-left">3D Living Cell Telemetry Model</h3>
-            <div className="w-full max-w-[320px] aspect-square rounded-2xl bg-[#060608] border border-graphite-border/60 overflow-hidden relative">
+            <div className="w-full max-w-[300px] aspect-square rounded-2xl bg-[#060608] border border-graphite-border/60 overflow-hidden relative">
               <LivingCell 
                 soh={predictionResult ? predictionResult.soh_percent : sohCurrent} 
                 hasKneePoint={predictionResult ? predictionResult.has_knee_point : false} 
@@ -345,11 +337,11 @@ export default function PredictPage() {
             </div>
           </div>
 
-          {/* Results Summary Box */}
+          {/* Numerical ML Results Grid */}
           {predictionResult && (
-            <div className="bg-[#0b0b10] p-6 rounded-2xl border border-graphite-border space-y-5 shadow-xl animate-fade-in">
-              <div className="flex justify-between items-center pb-3 border-b border-graphite-border/50">
-                <span className="text-xs font-bold text-white font-mono uppercase tracking-wider">Telemetry Prediction Output</span>
+            <div className="bg-[#0b0b10] p-5 rounded-2xl border border-graphite-border space-y-4 shadow-xl animate-fade-in">
+              <div className="flex justify-between items-center pb-2.5 border-b border-graphite-border/50">
+                <span className="text-xs font-bold text-white font-mono uppercase tracking-wider">Scikit-Learn ML Inference Output</span>
                 <span className="text-[10px] font-mono text-zinc-500 uppercase">MODEL: {predictionResult.model_version}</span>
               </div>
 
@@ -363,7 +355,7 @@ export default function PredictPage() {
                 <div className="bg-[#060608] p-3.5 rounded-xl border border-graphite-border/60">
                   <span className="block text-[9px] font-mono text-zinc-500 uppercase">RUL FRACTION</span>
                   <span className="text-base font-bold text-violet-400 font-mono mt-1 block">
-                    {Math.round(predictionResult.rul_fraction * 100)}%
+                    {Math.round((predictionResult.rul_fraction || 0) * 100)}%
                   </span>
                 </div>
                 <div className="bg-[#060608] p-3.5 rounded-xl border border-graphite-border/60">
@@ -374,73 +366,106 @@ export default function PredictPage() {
                 </div>
               </div>
 
-
-
               {predictionResult.has_knee_point && (
-                <div className="p-3.5 bg-red-950/40 border border-red-900/60 text-red-200 rounded-xl text-xs font-mono flex items-center gap-2">
+                <div className="p-3 bg-red-950/40 border border-red-900/60 text-red-200 rounded-xl text-xs font-mono flex items-center gap-2">
                   <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
                   <div>
-                    <strong>Accelerated Capacity Fade (Knee Point) Reached.</strong> Internal resistance spike &amp; rapid lithium plating expected.
+                    <strong>Accelerated Capacity Fade (Knee Point) Reached.</strong> Rapid lithium plating phase transition detected.
                   </div>
                 </div>
               )}
-
-              {/* Anchoring Options */}
-              <div className="border-t border-graphite-border/40 pt-4 flex flex-col gap-4">
-                <div className="space-y-1">
-                  <span className="block text-[10px] font-mono text-zinc-500 uppercase tracking-wider">CRYPTOGRAPHIC REPORT HASH</span>
-                  <code className="block text-[10px] font-mono text-[#deff00] break-all p-2.5 bg-[#060608] rounded-xl border border-graphite-border/50">
-                    {predictionResult.report_hash}
-                  </code>
-                </div>
-
-                {!anchorResult ? (
-                  <button
-                    onClick={handleAnchor}
-                    disabled={anchoring}
-                    className="w-full bg-violet-600/20 hover:bg-violet-600/30 border border-violet-500/40 text-violet-300 py-3 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all disabled:opacity-50 cursor-pointer shadow-lg font-mono uppercase tracking-wider"
-                  >
-                    {anchoring ? (
-                      <>
-                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                        Awaiting Polygon Blockchain confirmation (Amoy network)…
-                      </>
-                    ) : (
-                      <>
-                        <Shield className="w-3.5 h-3.5" />
-                        Anchor Prediction Report on Blockchain
-                      </>
-                    )}
-                  </button>
-                ) : (
-                  <div className="p-4 bg-[#deff00]/10 border border-[#deff00]/30 rounded-xl space-y-3">
-                    <div className="flex items-center gap-2 text-[#deff00] text-xs font-mono font-bold uppercase tracking-wider">
-                      <CheckCircle className="w-4 h-4" /> Cryptographic Ledger Record Anchor Confirmed!
-                    </div>
-                    <div className="text-[10px] font-mono text-zinc-300 space-y-1">
-                      <div>
-                        Transaction: <a href={`https://amoy.polygonscan.com/tx/${anchorResult.tx_hash}`} target="_blank" rel="noreferrer" className="text-[#deff00] underline break-all font-mono">{anchorResult.tx_hash}</a>
-                      </div>
-                      <div>
-                        Block Number: <strong className="text-white font-mono">{anchorResult.block_number}</strong>
-                      </div>
-                      <div>
-                        Contract Address: <code className="text-zinc-300 break-all font-mono">{anchorResult.contract_address}</code>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {anchorError && (
-                  <div className="p-3 bg-red-950/50 border border-red-800/80 rounded-xl text-red-200 text-xs font-mono">
-                    {anchorError}
-                  </div>
-                )}
-              </div>
             </div>
           )}
         </div>
       </div>
+
+      {/* Bottom Section: Full-Width 2-Column Grid for Gemini APM AI & Blockchain */}
+      {predictionResult && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 pt-4 border-t border-graphite-border/40 animate-fade-in">
+          {/* Column 1: Predictive Maintenance Triggers */}
+          <div className="lg:col-span-6">
+            {apmDiagnosis ? (
+              <PredictiveMaintenanceFeed
+                severity={apmDiagnosis.severity}
+                healthStatusLabel={apmDiagnosis.health_status_label}
+                rootCauseAnalysis={apmDiagnosis.root_cause_analysis}
+                failureProbability={apmDiagnosis.failure_probability_percent}
+                daysToMaintenance={apmDiagnosis.estimated_days_to_maintenance}
+                triggers={apmDiagnosis.predictive_maintenance_triggers}
+                aiEngine={apmDiagnosis.ai_engine}
+              />
+            ) : (
+              <div className="bg-[#0b0b10] p-6 rounded-2xl border border-graphite-border h-full flex items-center justify-center text-xs text-zinc-500 font-mono animate-pulse">
+                Loading Gemini APM AI Diagnostics...
+              </div>
+            )}
+          </div>
+
+          {/* Column 2: Optimal Charging Recommendations & Polygon Blockchain Anchoring */}
+          <div className="lg:col-span-6 space-y-6">
+            {apmDiagnosis && (
+              <OptimalChargingPanel protocol={apmDiagnosis.optimal_charging_protocol} />
+            )}
+
+            {/* Polygon Blockchain Anchor Card */}
+            <div className="bg-[#0b0b10] p-5 rounded-2xl border border-graphite-border space-y-4 shadow-xl">
+              <div className="flex justify-between items-center pb-2.5 border-b border-graphite-border/50">
+                <span className="text-xs font-bold text-white font-mono uppercase tracking-wider flex items-center gap-2">
+                  <Shield className="w-4 h-4 text-[#deff00]" /> Polygon Blockchain Provenance
+                </span>
+                <span className="text-[10px] font-mono text-[#deff00]">Polygon Amoy</span>
+              </div>
+
+              <div className="space-y-1">
+                <span className="block text-[10px] font-mono text-zinc-500 uppercase tracking-wider">CRYPTOGRAPHIC REPORT HASH</span>
+                <code className="block text-[10px] font-mono text-[#deff00] break-all p-2.5 bg-[#060608] rounded-xl border border-graphite-border/50">
+                  {predictionResult.report_hash}
+                </code>
+              </div>
+
+              {!anchorResult ? (
+                <button
+                  onClick={handleAnchor}
+                  disabled={anchoring}
+                  className="w-full bg-violet-600/20 hover:bg-violet-600/30 border border-violet-500/40 text-violet-300 py-3 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all disabled:opacity-50 cursor-pointer shadow-lg font-mono uppercase tracking-wider"
+                >
+                  {anchoring ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      Awaiting Polygon confirmation (Amoy testnet)…
+                    </>
+                  ) : (
+                    <>
+                      <Shield className="w-3.5 h-3.5" />
+                      Anchor Prediction Report on Blockchain
+                    </>
+                  )}
+                </button>
+              ) : (
+                <div className="p-4 bg-[#deff00]/10 border border-[#deff00]/30 rounded-xl space-y-3">
+                  <div className="flex items-center gap-2 text-[#deff00] text-xs font-mono font-bold uppercase tracking-wider">
+                    <CheckCircle className="w-4 h-4" /> Cryptographic Ledger Record Anchor Confirmed!
+                  </div>
+                  <div className="text-[10px] font-mono text-zinc-300 space-y-1">
+                    <div>
+                      Tx Hash: <a href={`https://amoy.polygonscan.com/tx/${anchorResult.tx_hash}`} target="_blank" rel="noreferrer" className="text-[#deff00] underline break-all font-mono">{anchorResult.tx_hash}</a>
+                    </div>
+                    <div>
+                      Block Number: <strong className="text-white font-mono">{anchorResult.block_number}</strong>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {anchorError && (
+                <div className="p-3 bg-red-950/50 border border-red-800/80 rounded-xl text-red-200 text-xs font-mono">
+                  {anchorError}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

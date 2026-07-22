@@ -25,7 +25,12 @@ class Settings(BaseSettings):
     CONTRACT_ADDRESS: str = ""
 
     # ─── App ──────────────────────────────────────────────
-    CORS_ORIGINS: str = "http://localhost:3000,http://localhost:3001"
+    CORS_ORIGINS: str = "http://localhost:3000,http://localhost:3001,https://cell-trace.vercel.app,https://*.vercel.app"
+
+    # ─── Gemini AI ─────────────────────────────────────────
+    GEMINI_API_KEY: str = ""
+    GEMINI_MODEL: str = "gemini-2.5-flash"
+
 
     # ─── ML Models ────────────────────────────────────────
     ML_MODELS_PATH: str = str(BASE_DIR / "models")

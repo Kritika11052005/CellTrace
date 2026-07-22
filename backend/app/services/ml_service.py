@@ -78,85 +78,87 @@ class MLService:
             "model_version": "v1.0-rf-calce-mit-nasa-snl",
         }
 
+        import pandas as pd
+
         # ─── Feature engineering ─────────────────────────
-        # Map cathode to numeric
-        cathode_map = {"LFP": 0, "NMC": 1, "NCA": 2, "LCO": 3}
-        cathode_val = cathode_map.get(cathode.upper(), 0)
-
-        # Use provided features or derive simple estimates
-        fade_mean = early_fade_rate_mean if early_fade_rate_mean is not None else -(1 - soh_current) / max(cycle_number, 1)
+        # Derived feature estimates from cycle telemetry
+        fade_mean = early_fade_rate_mean if early_fade_rate_mean is not None else -(1.0 - soh_current) / max(cycle_number, 1)
         fade_std = early_fade_rate_std if early_fade_rate_std is not None else abs(fade_mean) * 0.5
-        fade_min = early_fade_rate_min if early_fade_rate_min is not None else fade_mean * 2
+        fade_curvature = early_fade_rate_min if early_fade_rate_min is not None else fade_mean * 0.1
 
-        # ─── SOH prediction ─────────────────────────────
+        # ─── 1. SOH Prediction (8 features) ───────────────
         if self.soh_model is not None:
             try:
-                # Features: cycle, soh, fade_mean, fade_std, fade_min, cathode
-                soh_features = np.array([[
-                    cycle_number,
-                    soh_current,
-                    fade_mean,
-                    fade_std,
-                    fade_min,
-                    cathode_val,
-                ]])
-                soh_pred = self.soh_model.predict(soh_features)[0]
+                # Expected features: ['soh_at_start', 'soh_at_cutoff', 'soh_fade_slope', 'soh_fade_curvature', 'soh_std', 'n_cycles_used', 'voltage_max_mean', 'voltage_max_trend']
+                soh_df = pd.DataFrame([{
+                    "soh_at_start": 1.0,
+                    "soh_at_cutoff": soh_current,
+                    "soh_fade_slope": fade_mean,
+                    "soh_fade_curvature": fade_curvature,
+                    "soh_std": fade_std,
+                    "n_cycles_used": cycle_number,
+                    "voltage_max_mean": 3.65,
+                    "voltage_max_trend": -0.0001,
+                }])
+                soh_pred = self.soh_model.predict(soh_df)[0]
                 results["soh_percent"] = round(float(soh_pred) * 100, 2)
 
-                # Confidence: use model's tree predictions for range
                 if hasattr(self.soh_model, 'estimators_'):
-                    tree_preds = np.array([t.predict(soh_features)[0] for t in self.soh_model.estimators_])
+                    tree_preds = np.array([t.predict(soh_df)[0] for t in self.soh_model.estimators_])
                     results["confidence_range"]["soh_low"] = round(float(np.percentile(tree_preds, 10)) * 100, 2)
                     results["confidence_range"]["soh_high"] = round(float(np.percentile(tree_preds, 90)) * 100, 2)
             except Exception as e:
                 logger.error(f"SOH prediction failed: {e}")
                 results["soh_percent"] = round(soh_current * 100, 2)
 
-        # ─── RUL prediction ─────────────────────────────
+        # ─── 2. RUL Prediction (6 features) ───────────────
         if self.rul_model is not None:
             try:
-                rul_features = np.array([[
-                    cycle_number,
-                    soh_current,
-                    fade_mean,
-                    fade_std,
-                    fade_min,
-                    cathode_val,
-                ]])
-                rul_frac = self.rul_model.predict(rul_features)[0]
+                # Expected features: ['soh_current', 'soh_window_mean', 'soh_window_std', 'soh_fade_slope', 'soh_fade_curvature', 'n_window_cycles']
+                rul_df = pd.DataFrame([{
+                    "soh_current": soh_current,
+                    "soh_window_mean": soh_current,
+                    "soh_window_std": fade_std,
+                    "soh_fade_slope": fade_mean,
+                    "soh_fade_curvature": fade_curvature,
+                    "n_window_cycles": cycle_number,
+                }])
+                rul_frac = self.rul_model.predict(rul_df)[0]
                 rul_frac = float(np.clip(rul_frac, 0, 1))
                 results["rul_fraction"] = round(rul_frac, 4)
 
-                # Estimate absolute cycles remaining (rough: based on typical lifecycle)
-                # EOL threshold is 0.85 SOH per stage2 summary
                 if rul_frac > 0:
                     estimated_total = int(cycle_number / max(1 - rul_frac, 0.01))
                     results["rul_cycles"] = max(0, estimated_total - cycle_number)
+                else:
+                    results["rul_cycles"] = 0
 
                 if hasattr(self.rul_model, 'estimators_'):
-                    tree_preds = np.array([t.predict(rul_features)[0] for t in self.rul_model.estimators_])
+                    tree_preds = np.array([t.predict(rul_df)[0] for t in self.rul_model.estimators_])
                     results["confidence_range"]["rul_low"] = round(float(np.percentile(tree_preds, 10)), 4)
                     results["confidence_range"]["rul_high"] = round(float(np.percentile(tree_preds, 90)), 4)
             except Exception as e:
                 logger.error(f"RUL prediction failed: {e}")
 
-        # ─── Knee-point detection ────────────────────────
+        # ─── 3. Knee-Point Detection (6 features) ─────────
         if self.knee_model is not None:
             try:
-                # Knee-point model uses: cycles_to_5pct_fade, window_fade_rate_mean_smooth,
-                # accel_slope_diff_smooth, cathode
-                knee_features = np.array([[
-                    cycle_number,  # proxy for cycles_to_5pct_fade
-                    fade_mean,     # proxy for window_fade_rate_mean_smooth
-                    fade_std * fade_mean if fade_mean != 0 else 0,  # proxy for accel_slope_diff_smooth
-                    cathode_val,
-                ]])
-                knee_pred = self.knee_model.predict(knee_features)[0]
+                # Expected features: ['soh_start', 'soh_at_early_cutoff', 'early_fade_slope', 'early_fade_curvature', 'early_soh_std', 'n_early_cycles']
+                knee_df = pd.DataFrame([{
+                    "soh_start": 1.0,
+                    "soh_at_early_cutoff": soh_current,
+                    "early_fade_slope": fade_mean,
+                    "early_fade_curvature": fade_curvature,
+                    "early_soh_std": fade_std,
+                    "n_early_cycles": cycle_number,
+                }])
+                knee_pred = self.knee_model.predict(knee_df)[0]
                 results["has_knee_point"] = bool(knee_pred)
             except Exception as e:
                 logger.error(f"Knee-point prediction failed: {e}")
 
         return results
+
 
     @staticmethod
     def _normalize_payload(data):

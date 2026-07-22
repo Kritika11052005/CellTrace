@@ -23,9 +23,14 @@ class ApiClient {
       let errorMessage = 'An error occurred';
       try {
         const errorData = await response.json();
-        errorMessage = errorData.detail || errorData.message || errorMessage;
+        if (typeof errorData.detail === 'string') {
+          errorMessage = errorData.detail;
+        } else if (Array.isArray(errorData.detail)) {
+          errorMessage = errorData.detail.map((err: any) => `${err.loc?.join('.')}: ${err.msg}`).join(', ');
+        } else if (errorData.detail || errorData.message) {
+          errorMessage = JSON.stringify(errorData.detail || errorData.message);
+        }
       } catch {
-        // Fallback if not JSON
         errorMessage = response.statusText || errorMessage;
       }
       throw new Error(errorMessage);
@@ -304,18 +309,100 @@ class ApiClient {
   // ─── Dashboard Stats ─────────────────────────────────────
 
   async getDashboardStats() {
-    // Combine some metadata to show dashboard status metrics
     const batteriesRes = await this.getBatteries('', 0, 1);
     const healthRes = await fetch(`${API_BASE_URL}/health`);
     const health = await healthRes.json();
 
     return {
       total_batteries: batteriesRes.total,
-      db_connected: health.checks.database === 'connected',
-      chain_active: health.checks.blockchain === 'available',
-      ml_loaded: health.checks.ml_models === 'loaded',
+      db_connected: health.checks?.database === 'connected',
+      chain_active: health.checks?.blockchain === 'available',
+      ml_loaded: health.checks?.ml_models === 'loaded',
     };
+  }
+
+  // ─── APM AI Agent ────────────────────────────────────────
+
+
+  async getAPMDiagnosis(data: {
+    battery_id: string;
+    cycle_number: number;
+    soh_percent: number;
+    rul_cycles?: number;
+    has_knee_point?: boolean;
+    cathode?: string;
+    avg_temp_c?: number;
+    peak_temp_c?: number;
+    avg_c_rate?: number;
+    voltage_delta_mv?: number;
+  }) {
+    const res = await fetch(`${API_BASE_URL}/apm/diagnose`, {
+      method: 'POST',
+      headers: this.getHeaders(false),
+      body: JSON.stringify(data),
+    });
+    return this.handleResponse<{
+      severity: 'CRITICAL' | 'WARNING' | 'OPTIMAL';
+      health_status_label: string;
+      root_cause_analysis: string;
+      failure_probability_percent: number;
+      estimated_days_to_maintenance: number;
+      predictive_maintenance_triggers: Array<{
+        action: string;
+        priority: 'HIGH' | 'MEDIUM' | 'LOW';
+        timeframe: string;
+      }>;
+      optimal_charging_protocol: {
+        max_recommended_c_rate: number;
+        optimal_soc_window: string;
+        thermal_preconditioning: string;
+        fast_charge_throttling: string;
+      };
+      projected_rul_extension_cycles: number;
+      executive_summary: string;
+      ai_engine: string;
+    }>(res);
+  }
+
+  async chatAPMCopilot(message: string, batteryId?: string, sohPercent?: number, rulCycles?: number) {
+    const res = await fetch(`${API_BASE_URL}/apm/copilot/chat`, {
+      method: 'POST',
+      headers: this.getHeaders(false),
+      body: JSON.stringify({
+        message,
+        battery_id: batteryId,
+        soh_percent: sohPercent,
+        rul_cycles: rulCycles,
+      }),
+    });
+    return this.handleResponse<{ reply: string; engine: string }>(res);
+  }
+
+  async getTelemetryStream(batteryId: string) {
+    const res = await fetch(`${API_BASE_URL}/apm/telemetry-stream/${encodeURIComponent(batteryId)}`, {
+      method: 'GET',
+      headers: this.getHeaders(false),
+    });
+    return this.handleResponse<{
+      battery_id: string;
+      telemetry: {
+        current_temp_c: number;
+        peak_temp_24h_c: number;
+        voltage_delta_mv: number;
+        current_c_rate: number;
+        charging_state: string;
+        cooling_circuit_status: string;
+      };
+      trajectory_curve: Array<{
+        cycle: number;
+        observed_soh?: number;
+        unmitigated_soh: number;
+        optimized_soh: number;
+      }>;
+      extension_benefit_cycles: number;
+    }>(res);
   }
 }
 
 export const api = new ApiClient();
+
