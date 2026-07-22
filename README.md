@@ -13,7 +13,7 @@
 
 *An enterprise EV Asset Performance Management (APM) agent combining Gemini 2.5 Flash AI, Electro-Chemical Physics RAG, multi-model Scikit-Learn ML inference, and Polygon blockchain provenance.*
 
-[Public Gateway](http://localhost:3000) • [APM Operations Console](http://localhost:3000/dashboard) • [Inference Terminal](http://localhost:3000/dashboard/predict) • [API Docs](http://localhost:8000/docs)
+[Public Gateway](https://cell-trace.vercel.app/) • [APM Operations Console](https://cell-trace.vercel.app/dashboard) • [Inference Terminal](https://cell-trace.vercel.app/dashboard/predict) • [API Docs](https://celltrace.onrender.com/docs)
 
 ---
 
